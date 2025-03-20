@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern To-Do List</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"], input[type="search"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-section {
+            margin-bottom: 20px;
+        }
+
+        .task-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .task-content {
+            flex: 1;
+            margin: 0 15px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .timer {
+            background: #e2e8f0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-left: 15px;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 2px solid #e2e8f0;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: white;
+        }
+
+        /* Timer controls */
+        .start-btn { background: #48bb78; }
+        .pause-btn { background: #ecc94b; }
+        .reset-btn { background: #f56565; }
+        .timer-controls { display: flex; gap: 8px; }
+
+        @media (max-width: 600px) {
+            .task-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .task-actions {
+                width: 100%;
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Productivity Pro</h1>
+        </header>
+
+        <div class="input-section">
+            <input type="text" id="taskInput" placeholder="Add new task...">
+            <button onclick="addTask()" style="background: #4a5568;">Add Task</button>
+        </div>
+
+        <div class="search-section">
+            <input type="search" id="searchInput" placeholder="Search tasks...">
+        </div>
+
+        <div class="task-list" id="taskList"></div>
+    </div>
+
+    <footer>
+        <p>Productivity Pro © 2023 | Track Your Tasks Efficiently</p>
+    </footer>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        let timers = {};
+
+        // Initialize from localStorage
+        function updateStorage() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function createTaskElement(task) {
+            const taskEl = document.createElement('div');
+            taskEl.className = 'task-item';
+            taskEl.innerHTML = `
+                <select onchange="updateStatus(${task.id}, this.value)">
+                    <option value="todo" ${task.status === 'todo' ? 'selected' : ''}>To Do</option>
+                    <option value="progress" ${task.status === 'progress' ? 'selected' : ''}>In Progress</option>
+                    <option value="done" ${task.status === 'done' ? 'selected' : ''}>Done</option>
+                </select>
+                <div class="task-content">${task.text}</div>
+                <div class="timer" id="timer-${task.id}">${formatTime(task.time)}</div>
+                <div class="task-actions">
+                    <div class="timer-controls">
+                        <button class="${timers[task.id] ? 'pause-btn' : 'start-btn'}" 
+                                onclick="toggleTimer(${task.id})" 
+                                id="timer-btn-${task.id}">
+                            ${timers[task.id] ? 'Pause' : 'Start'}
+                        </button>
+                        <button class="reset-btn" onclick="resetTimer(${task.id})">Reset</button>
+                    </div>
+                    <button onclick="editTask(${task.id})" style="background: #4a5568;">Edit</button>
+                    <button onclick="deleteTask(${task.id})" style="background: #4a5568;">Delete</button>
+                </div>
+            `;
+            return taskEl;
+        }
+
+        function renderTasks() {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+            tasks.forEach(task => {
+                taskList.appendChild(createTaskElement(task));
+            });
+        }
+
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            const text = input.value.trim();
+            if (text) {
+                tasks.push({
+                    id: Date.now(),
+                    text: text,
+                    status: 'todo',
+                    time: 0
+                });
+                input.value = '';
+                updateStorage();
+                renderTasks();
+            }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(task => task.id !== id);
+            if (timers[id]) clearInterval(timers[id]);
+            delete timers[id];
+            updateStorage();
+            renderTasks();
+        }
+
+        function editTask(id) {
+            const task = tasks.find(t => t.id === id);
+            const newText = prompt('Edit task:', task.text);
+            if (newText !== null) {
+                task.text = newText.trim();
+                updateStorage();
+                renderTasks();
+            }
+        }
+
+        function updateStatus(id, status) {
+            const task = tasks.find(t => t.id === id);
+            task.status = status;
+            updateStorage();
+        }
+
+        function toggleTimer(id) {
+            const task = tasks.find(t => t.id === id);
+            const timerBtn = document.getElementById(`timer-btn-${id}`);
+
+            if (timers[id]) {
+                clearInterval(timers[id]);
+                delete timers[id];
+                timerBtn.textContent = 'Start';
+                timerBtn.className = 'start-btn';
+            } else {
+                timers[id] = setInterval(() => {
+                    task.time++;
+                    updateStorage();
+                    document.getElementById(`timer-${id}`).textContent = formatTime(task.time);
+                }, 1000);
+                timerBtn.textContent = 'Pause';
+                timerBtn.className = 'pause-btn';
+            }
+        }
+
+        function resetTimer(id) {
+            const task = tasks.find(t => t.id === id);
+            task.time = 0;
+            if (timers[id]) {
+                clearInterval(timers[id]);
+                delete timers[id];
+            }
+            document.getElementById(`timer-${id}`).textContent = formatTime(0);
+            document.getElementById(`timer-btn-${id}`).textContent = 'Start';
+            document.getElementById(`timer-btn-${id}`).className = 'start-btn';
+            updateStorage();
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const term = e.target.value.toLowerCase();
+            const filtered = tasks.filter(task => task.text.toLowerCase().includes(term));
+            document.getElementById('taskList').innerHTML = '';
+            filtered.forEach(task => document.getElementById('taskList').appendChild(createTaskElement(task)));
+        });
+
+        // Initial render
+        renderTasks();
+    </script>
+</body>
+</html>
